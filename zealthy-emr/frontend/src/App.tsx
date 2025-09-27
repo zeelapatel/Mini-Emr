@@ -6,6 +6,7 @@ import Login from './components/Login';
 import PatientPortal from './components/PatientPortal';
 import PatientAppointments from './components/PatientAppointments';
 import PatientPrescriptions from './components/PatientPrescriptions';
+import Home from './components/Home';
 import AdminDashboard from './components/AdminDashboard';
 import PatientDetail from './components/PatientDetail';
 
@@ -15,9 +16,10 @@ function App() {
       <BrowserRouter>
         <Layout>
           <Routes>
-            <Route path="/" element={<Login />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
             <Route
-              path="/portal"
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <PatientPortal />
@@ -25,7 +27,7 @@ function App() {
               }
             />
             <Route
-              path="/portal/appointments"
+              path="/dashboard/appointments"
               element={
                 <ProtectedRoute>
                   <PatientAppointments />
@@ -33,7 +35,7 @@ function App() {
               }
             />
             <Route
-              path="/portal/prescriptions"
+              path="/dashboard/prescriptions"
               element={
                 <ProtectedRoute>
                   <PatientPrescriptions />

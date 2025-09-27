@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
+import BackButton from './BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import { getPrescriptionsForPatient } from '../services/api';
 
@@ -32,7 +33,10 @@ export default function PatientPrescriptions() {
 
   return (
     <div className="card">
-      <h2>Prescriptions and Upcoming Refills (next 3 months)</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>Prescriptions and Upcoming Refills (next 3 months)</h2>
+        <BackButton to="/dashboard" />
+      </div>
       <table className="table">
         <thead>
           <tr>

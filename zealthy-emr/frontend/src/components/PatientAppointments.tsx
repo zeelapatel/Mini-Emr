@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
+import BackButton from './BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import { getAppointmentsForPatient } from '../services/api';
 
@@ -32,7 +33,10 @@ export default function PatientAppointments() {
 
   return (
     <div className="card">
-      <h2>Upcoming Appointments (next 3 months)</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>Upcoming Appointments (next 3 months)</h2>
+        <BackButton to="/dashboard" />
+      </div>
       <table className="table">
         <thead>
           <tr>

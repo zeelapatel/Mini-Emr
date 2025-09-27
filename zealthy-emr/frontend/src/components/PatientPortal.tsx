@@ -70,8 +70,8 @@ export default function PatientPortal() {
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-        <Link to="/portal/appointments"><button>View All Appointments</button></Link>
-        <Link to="/portal/prescriptions"><button>View All Prescriptions</button></Link>
+        <Link to="/dashboard/appointments"><button>View All Appointments</button></Link>
+        <Link to="/dashboard/prescriptions"><button>View All Prescriptions</button></Link>
       </div>
     </div>
   );

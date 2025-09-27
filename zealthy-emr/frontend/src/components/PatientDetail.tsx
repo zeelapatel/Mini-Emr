@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '../contexts/ToastContext';
 import { Link, useParams } from 'react-router-dom';
+import BackButton from './BackButton';
 import {
   getPatient,
   updatePatient,
@@ -217,7 +218,7 @@ export default function PatientDetail() {
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0 }}>Patient #{patient.id}: {patient.name}</h2>
-        <Link to="/admin">Back to Patients</Link>
+        <BackButton to="/admin" label="Back to Patients" />
       </div>
 
       {/* Patient info */}

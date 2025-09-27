@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password, remember);
-      navigate('/portal');
+      navigate('/dashboard');
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Login failed');
     } finally {

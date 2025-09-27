@@ -1,24 +1,36 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (!user && location.pathname.startsWith('/dashboard')) {
+      navigate('/', { replace: true });
+    }
+  }, [user, location.pathname]);
   return (
     <div>
       <nav className="nav">
         <div className="nav-left">
-          <Link to="/">Zealthy EMR</Link>
-          <Link to="/portal">Portal</Link>
-          <Link to="/portal/appointments">Appointments</Link>
-          <Link to="/portal/prescriptions">Prescriptions</Link>
+          <Link to={user ? "/dashboard" : "/"}>Zealthy EMR</Link>
+          {user ? (
+            <>
+              <Link to="/dashboard">Dashboard</Link>
+              <Link to="/dashboard/appointments">Appointments</Link>
+              <Link to="/dashboard/prescriptions">Prescriptions</Link>
+            </>
+          ) : null}
           <Link to="/admin">Admin</Link>
         </div>
         <div className="nav-right">
           {user ? (
             <>
               <span>{user.name}</span>
-              <button onClick={logout} aria-label="Logout">Logout</button>
+              <button onClick={() => { logout(); navigate('/', { replace: true }); }} aria-label="Logout">Logout</button>
             </>
           ) : (
             <Link to="/">Login</Link>
