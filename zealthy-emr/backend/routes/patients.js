@@ -2,41 +2,25 @@
 
 const express = require('express');
 const bcrypt = require('bcrypt');
-const { db } = require('../db/database');
+const { prisma } = require('../prisma/client');
 
 const router = express.Router();
-
-function allAsync(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
-  });
-}
-
-function getAsync(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
-  });
-}
-
-function runAsync(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) return reject(err);
-      resolve(this);
-    });
-  });
-}
 
 // 1) GET /api/patients - list with counts
 router.get('/', async (req, res) => {
   try {
-    const users = await allAsync('SELECT id, name, email, created_at FROM users');
-    const results = [];
-    for (const u of users) {
-      const [{ count: apptCount } = { count: 0 }] = await allAsync('SELECT COUNT(*) AS count FROM appointments WHERE user_id = ?', [u.id]);
-      const [{ count: rxCount } = { count: 0 }] = await allAsync('SELECT COUNT(*) AS count FROM prescriptions WHERE user_id = ?', [u.id]);
-      results.push({ ...u, appointmentsCount: apptCount, prescriptionsCount: rxCount });
-    }
+    const users = await prisma.user.findMany({
+      select: {
+        id: true, name: true, email: true, createdAt: true,
+        _count: { select: { appointments: true, prescriptions: true } }
+      },
+      orderBy: { id: 'asc' }
+    });
+    const results = users.map(u => ({
+      id: u.id, name: u.name, email: u.email, created_at: u.createdAt,
+      appointmentsCount: u._count.appointments,
+      prescriptionsCount: u._count.prescriptions
+    }));
     return res.json({ patients: results });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
@@ -49,13 +33,16 @@ router.get('/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
 
-    const user = await getAsync('SELECT id, name, email, created_at FROM users WHERE id = ?', [id]);
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, name: true, email: true, createdAt: true }
+    });
     if (!user) return res.status(404).json({ error: 'Not found' });
 
-    const appointments = await allAsync('SELECT id, provider, datetime, repeat, created_at FROM appointments WHERE user_id = ? ORDER BY datetime DESC', [id]);
-    const prescriptions = await allAsync('SELECT id, medication, dosage, quantity, refill_on, refill_schedule, created_at FROM prescriptions WHERE user_id = ? ORDER BY created_at DESC', [id]);
+    const appointments = await prisma.appointment.findMany({ where: { userId: id }, orderBy: { datetime: 'desc' } });
+    const prescriptions = await prisma.prescription.findMany({ where: { userId: id }, orderBy: { createdAt: 'desc' } });
 
-    return res.json({ patient: user, appointments, prescriptions });
+    return res.json({ patient: { id: user.id, name: user.name, email: user.email, created_at: user.createdAt }, appointments, prescriptions });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
   }
@@ -69,13 +56,12 @@ router.post('/', async (req, res) => {
     if (!/.+@.+\..+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-    const existing = await getAsync('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return res.status(409).json({ error: 'Email already exists' });
 
     const hashed = await bcrypt.hash(password, 10);
-    const result = await runAsync('INSERT INTO users (name, email, password) VALUES (?, ?, ?)', [name, email, hashed]);
-    const created = await getAsync('SELECT id, name, email, created_at FROM users WHERE id = ?', [result.lastID]);
-    return res.status(201).json({ patient: created });
+    const created = await prisma.user.create({ data: { name, email, password: hashed } });
+    return res.status(201).json({ patient: { id: created.id, name: created.name, email: created.email, created_at: created.createdAt } });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
   }
@@ -90,26 +76,23 @@ router.put('/:id', async (req, res) => {
     const { name, email, password } = req.body || {};
     if (!name && !email && !password) return res.status(400).json({ error: 'Nothing to update' });
 
-    const existing = await getAsync('SELECT id FROM users WHERE id = ?', [id]);
+    const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
     const updates = [];
-    const params = [];
-    if (name) { updates.push('name = ?'); params.push(name); }
+    const data = {};
+    if (name) { updates.push('name'); data.name = name; }
     if (email) {
       if (!/.+@.+\..+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
-      updates.push('email = ?'); params.push(email);
+      updates.push('email'); data.email = email;
     }
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
-      updates.push('password = ?');
-      params.push(hashed);
+      updates.push('password');
+      data.password = hashed;
     }
-    params.push(id);
-
-    await runAsync(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
-    const updated = await getAsync('SELECT id, name, email, created_at FROM users WHERE id = ?', [id]);
-    return res.json({ patient: updated });
+    const updated = await prisma.user.update({ where: { id }, data });
+    return res.json({ patient: { id: updated.id, name: updated.name, email: updated.email, created_at: updated.createdAt } });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
   }

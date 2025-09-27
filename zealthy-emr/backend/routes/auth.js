@@ -3,19 +3,14 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { db } = require('../db/database');
+const { prisma } = require('../prisma/client');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Helper: find user by email
-function getUserByEmail(email) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
+async function getUserByEmail(email) {
+  return await prisma.user.findUnique({ where: { email } });
 }
 
 // POST /api/auth/login
@@ -43,11 +38,9 @@ router.post('/login', async (req, res) => {
 // GET /api/auth/verify
 router.get('/verify', authMiddleware, async (req, res) => {
   try {
-    db.get('SELECT id, name, email FROM users WHERE id = ?', [req.userId], (err, row) => {
-      if (err) return res.status(500).json({ error: 'Server error' });
-      if (!row) return res.status(404).json({ error: 'User not found' });
-      return res.json({ user: row });
-    });
+    const row = await prisma.user.findUnique({ where: { id: req.userId }, select: { id: true, name: true, email: true } });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    return res.json({ user: row });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
   }

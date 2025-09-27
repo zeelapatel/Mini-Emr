@@ -3,7 +3,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { initializeDatabase } = require('./db/database');
+// Prisma now handles DB; legacy sqlite init removed
 const authRoutes = require('./routes/auth');
 const patientsRoutes = require('./routes/patients');
 const appointmentsRoutes = require('./routes/appointments');
@@ -25,17 +25,17 @@ app.use(
 app.use(express.json());
 
 // Initialize DB and tables
-initializeDatabase();
-// Auto-seed on Render demo when DB is empty
+// Optional: auto-seed Prisma when empty (demo)
 if (process.env.RENDER && !process.env.SKIP_SEED) {
-  try {
-    const { db } = require('./db/database');
-    db.get('SELECT COUNT(*) as c FROM users', async (err, row) => {
-      if (err || (row && row.c === 0)) {
-        try { require('./db/seed'); } catch (_) {}
+  (async () => {
+    try {
+      const { prisma } = require('./prisma/client');
+      const count = await prisma.user.count();
+      if (count === 0) {
+        require('./prisma/seed');
       }
-    });
-  } catch (_) {}
+    } catch (_) {}
+  })();
 }
 
 // Basic health endpoint

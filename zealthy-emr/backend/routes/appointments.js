@@ -1,31 +1,12 @@
 'use strict';
 
 const express = require('express');
-const { db } = require('../db/database');
+const { prisma } = require('../prisma/client');
 const { calculateNextAppointments } = require('../utils/recurrence');
 
 const router = express.Router();
 
-function allAsync(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
-  });
-}
-
-function getAsync(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
-  });
-}
-
-function runAsync(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) return reject(err);
-      resolve(this);
-    });
-  });
-}
+// sqlite helpers removed; using Prisma
 
 // GET /api/appointments/patient/:patientId
 router.get('/patient/:patientId', async (req, res) => {
@@ -33,11 +14,11 @@ router.get('/patient/:patientId', async (req, res) => {
     const patientId = Number(req.params.patientId);
     if (!Number.isInteger(patientId)) return res.status(400).json({ error: 'Invalid patientId' });
     const includeFuture = String(req.query.includeFuture || 'false').toLowerCase() === 'true';
-    const rows = await allAsync('SELECT * FROM appointments WHERE user_id = ? ORDER BY datetime DESC', [patientId]);
+    const rows = await prisma.appointment.findMany({ where: { userId: patientId }, orderBy: { datetime: 'desc' } });
     if (!includeFuture) return res.json({ appointments: rows });
     const expanded = [];
     for (const a of rows) {
-      const next = calculateNextAppointments(a, 3);
+      const next = calculateNextAppointments({ datetime: a.datetime, repeat: a.repeat, end_date: a.endDate, endDate: a.endDate }, 3);
       if (next.length === 0) continue;
       for (const dt of next) {
         expanded.push({ ...a, datetime: dt });
@@ -55,7 +36,7 @@ router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
-    const row = await getAsync('SELECT * FROM appointments WHERE id = ?', [id]);
+    const row = await prisma.appointment.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ error: 'Not found' });
     return res.json({ appointment: row });
   } catch (err) {
@@ -79,11 +60,7 @@ router.post('/', async (req, res) => {
       if (isNaN(ed.getTime())) return res.status(400).json({ error: 'Invalid end_date' });
       if (ed < dt) return res.status(400).json({ error: 'end_date cannot be before start datetime' });
     }
-    const result = await runAsync(
-      'INSERT INTO appointments (user_id, provider, datetime, repeat, end_date) VALUES (?, ?, ?, ?, ?)',
-      [user_id, provider, datetime, repeat, end_date || null]
-    );
-    const created = await getAsync('SELECT * FROM appointments WHERE id = ?', [result.lastID]);
+    const created = await prisma.appointment.create({ data: { userId: Number(user_id), provider, datetime: new Date(datetime), repeat, endDate: end_date ? new Date(end_date) : null } });
     return res.status(201).json({ appointment: created });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
@@ -96,22 +73,19 @@ router.put('/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
     const { user_id, provider, datetime, repeat, end_date } = req.body || {};
-    const updates = [];
-    const params = [];
-    if (user_id) { updates.push('user_id = ?'); params.push(user_id); }
-    if (provider) { updates.push('provider = ?'); params.push(provider); }
+    const updates = {};
+    if (user_id) { updates.userId = Number(user_id); }
+    if (provider) { updates.provider = provider; }
     if (datetime) {
       const dt = new Date(datetime);
       if (isNaN(dt.getTime())) return res.status(400).json({ error: 'Invalid datetime' });
       if (dt < new Date()) return res.status(400).json({ error: 'Appointment cannot be in the past' });
-      updates.push('datetime = ?'); params.push(datetime);
+      updates.datetime = new Date(datetime);
     }
-    if (repeat) { updates.push('repeat = ?'); params.push(repeat); }
-    if (end_date !== undefined) { updates.push('end_date = ?'); params.push(end_date || null); }
-    if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
-    params.push(id);
-    await runAsync(`UPDATE appointments SET ${updates.join(', ')} WHERE id = ?`, params);
-    const updated = await getAsync('SELECT * FROM appointments WHERE id = ?', [id]);
+    if (repeat) { updates.repeat = repeat; }
+    if (end_date !== undefined) { updates.endDate = end_date ? new Date(end_date) : null; }
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    const updated = await prisma.appointment.update({ where: { id }, data: updates });
     if (!updated) return res.status(404).json({ error: 'Not found' });
     return res.json({ appointment: updated });
   } catch (err) {
@@ -124,7 +98,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
-    await runAsync('DELETE FROM appointments WHERE id = ?', [id]);
+    await prisma.appointment.delete({ where: { id } });
     return res.status(204).send();
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
