@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { db } = require('../db/database');
+const { calculateNextRefills } = require('../utils/recurrence');
 
 const router = express.Router();
 
@@ -31,8 +32,16 @@ router.get('/patient/:patientId', async (req, res) => {
   try {
     const patientId = Number(req.params.patientId);
     if (!Number.isInteger(patientId)) return res.status(400).json({ error: 'Invalid patientId' });
+    const includeFuture = String(req.query.includeFuture || 'false').toLowerCase() === 'true';
     const rows = await allAsync('SELECT * FROM prescriptions WHERE user_id = ? ORDER BY created_at DESC', [patientId]);
-    return res.json({ prescriptions: rows });
+    if (!includeFuture) return res.json({ prescriptions: rows });
+    const projected = [];
+    for (const r of rows) {
+      const next = calculateNextRefills(r, 3);
+      for (const dt of next) projected.push({ ...r, nextRefill: dt });
+    }
+    projected.sort((a, b) => new Date(a.nextRefill) - new Date(b.nextRefill));
+    return res.json({ prescriptions: projected });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
   }
@@ -58,6 +67,9 @@ router.post('/', async (req, res) => {
     if (!user_id || !medication || !dosage || !quantity || !refill_on || !refill_schedule) {
       return res.status(400).json({ error: 'user_id, medication, dosage, quantity, refill_on, refill_schedule are required' });
     }
+    if (Number(quantity) <= 0) return res.status(400).json({ error: 'quantity must be > 0' });
+    const ro = new Date(refill_on);
+    if (isNaN(ro.getTime())) return res.status(400).json({ error: 'Invalid refill_on' });
     const result = await runAsync(
       'INSERT INTO prescriptions (user_id, medication, dosage, quantity, refill_on, refill_schedule) VALUES (?, ?, ?, ?, ?, ?)',
       [user_id, medication, dosage, quantity, refill_on, refill_schedule]
@@ -80,8 +92,15 @@ router.put('/:id', async (req, res) => {
     if (user_id) { updates.push('user_id = ?'); params.push(user_id); }
     if (medication) { updates.push('medication = ?'); params.push(medication); }
     if (dosage) { updates.push('dosage = ?'); params.push(dosage); }
-    if (quantity) { updates.push('quantity = ?'); params.push(quantity); }
-    if (refill_on) { updates.push('refill_on = ?'); params.push(refill_on); }
+    if (quantity) {
+      if (Number(quantity) <= 0) return res.status(400).json({ error: 'quantity must be > 0' });
+      updates.push('quantity = ?'); params.push(quantity);
+    }
+    if (refill_on) {
+      const ro = new Date(refill_on);
+      if (isNaN(ro.getTime())) return res.status(400).json({ error: 'Invalid refill_on' });
+      updates.push('refill_on = ?'); params.push(refill_on);
+    }
     if (refill_schedule) { updates.push('refill_schedule = ?'); params.push(refill_schedule); }
     if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
     params.push(id);

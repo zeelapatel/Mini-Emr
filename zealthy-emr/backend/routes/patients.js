@@ -66,6 +66,8 @@ router.post('/', async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
     if (!name || !email || !password) return res.status(400).json({ error: 'name, email, and password are required' });
+    if (!/.+@.+\..+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
+    if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     const existing = await getAsync('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) return res.status(409).json({ error: 'Email already exists' });
@@ -94,7 +96,10 @@ router.put('/:id', async (req, res) => {
     const updates = [];
     const params = [];
     if (name) { updates.push('name = ?'); params.push(name); }
-    if (email) { updates.push('email = ?'); params.push(email); }
+    if (email) {
+      if (!/.+@.+\..+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
+      updates.push('email = ?'); params.push(email);
+    }
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
       updates.push('password = ?');

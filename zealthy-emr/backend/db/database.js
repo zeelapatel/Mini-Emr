@@ -28,6 +28,7 @@ function initializeDatabase() {
         provider TEXT NOT NULL,
         datetime TEXT NOT NULL,
         repeat TEXT,
+        end_date TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`
@@ -46,6 +47,15 @@ function initializeDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`
     );
+
+    // Ensure end_date column exists for older databases
+    db.all(`PRAGMA table_info(appointments)`, (err, rows) => {
+      if (err) return; // silent
+      const hasEndDate = Array.isArray(rows) && rows.some((r) => r.name === 'end_date');
+      if (!hasEndDate) {
+        db.run(`ALTER TABLE appointments ADD COLUMN end_date TEXT`);
+      }
+    });
   });
 }
 

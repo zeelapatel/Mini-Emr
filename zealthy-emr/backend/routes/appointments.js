@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { db } = require('../db/database');
+const { calculateNextAppointments } = require('../utils/recurrence');
 
 const router = express.Router();
 
@@ -31,8 +32,19 @@ router.get('/patient/:patientId', async (req, res) => {
   try {
     const patientId = Number(req.params.patientId);
     if (!Number.isInteger(patientId)) return res.status(400).json({ error: 'Invalid patientId' });
+    const includeFuture = String(req.query.includeFuture || 'false').toLowerCase() === 'true';
     const rows = await allAsync('SELECT * FROM appointments WHERE user_id = ? ORDER BY datetime DESC', [patientId]);
-    return res.json({ appointments: rows });
+    if (!includeFuture) return res.json({ appointments: rows });
+    const expanded = [];
+    for (const a of rows) {
+      const next = calculateNextAppointments(a, 3);
+      if (next.length === 0) continue;
+      for (const dt of next) {
+        expanded.push({ ...a, datetime: dt });
+      }
+    }
+    expanded.sort((x, y) => new Date(x.datetime) - new Date(y.datetime));
+    return res.json({ appointments: expanded });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
   }
@@ -54,13 +66,22 @@ router.get('/:id', async (req, res) => {
 // POST /api/appointments
 router.post('/', async (req, res) => {
   try {
-    const { user_id, provider, datetime, repeat } = req.body || {};
+    const { user_id, provider, datetime, repeat, end_date } = req.body || {};
     if (!user_id || !provider || !datetime || !repeat) {
       return res.status(400).json({ error: 'user_id, provider, datetime, repeat are required' });
     }
+    const now = new Date();
+    const dt = new Date(datetime);
+    if (isNaN(dt.getTime())) return res.status(400).json({ error: 'Invalid datetime' });
+    if (dt < now) return res.status(400).json({ error: 'Appointment cannot be in the past' });
+    if (end_date) {
+      const ed = new Date(end_date);
+      if (isNaN(ed.getTime())) return res.status(400).json({ error: 'Invalid end_date' });
+      if (ed < dt) return res.status(400).json({ error: 'end_date cannot be before start datetime' });
+    }
     const result = await runAsync(
-      'INSERT INTO appointments (user_id, provider, datetime, repeat) VALUES (?, ?, ?, ?)',
-      [user_id, provider, datetime, repeat]
+      'INSERT INTO appointments (user_id, provider, datetime, repeat, end_date) VALUES (?, ?, ?, ?, ?)',
+      [user_id, provider, datetime, repeat, end_date || null]
     );
     const created = await getAsync('SELECT * FROM appointments WHERE id = ?', [result.lastID]);
     return res.status(201).json({ appointment: created });
@@ -74,13 +95,19 @@ router.put('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
-    const { user_id, provider, datetime, repeat } = req.body || {};
+    const { user_id, provider, datetime, repeat, end_date } = req.body || {};
     const updates = [];
     const params = [];
     if (user_id) { updates.push('user_id = ?'); params.push(user_id); }
     if (provider) { updates.push('provider = ?'); params.push(provider); }
-    if (datetime) { updates.push('datetime = ?'); params.push(datetime); }
+    if (datetime) {
+      const dt = new Date(datetime);
+      if (isNaN(dt.getTime())) return res.status(400).json({ error: 'Invalid datetime' });
+      if (dt < new Date()) return res.status(400).json({ error: 'Appointment cannot be in the past' });
+      updates.push('datetime = ?'); params.push(datetime);
+    }
     if (repeat) { updates.push('repeat = ?'); params.push(repeat); }
+    if (end_date !== undefined) { updates.push('end_date = ?'); params.push(end_date || null); }
     if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
     params.push(id);
     await runAsync(`UPDATE appointments SET ${updates.join(', ')} WHERE id = ?`, params);
