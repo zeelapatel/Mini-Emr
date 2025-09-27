@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getPatients, createPatient } from '../services/api';
 import Spinner from './Spinner';
@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const [sortKey, setSortKey] = useState<'id' | 'name' | 'email' | 'appointmentsCount' | 'prescriptionsCount'>('id');
   const [asc, setAsc] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -31,9 +31,9 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [addToast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const onAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('token');
       }
     })();
-  }, []);
+  }, [token]);
 
   const login = async (email: string, password: string, remember: boolean = true) => {
     const { token, user } = await apiLogin(email, password);

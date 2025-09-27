@@ -26,6 +26,17 @@ app.use(express.json());
 
 // Initialize DB and tables
 initializeDatabase();
+// Auto-seed on Render demo when DB is empty
+if (process.env.RENDER && !process.env.SKIP_SEED) {
+  try {
+    const { db } = require('./db/database');
+    db.get('SELECT COUNT(*) as c FROM users', async (err, row) => {
+      if (err || (row && row.c === 0)) {
+        try { require('./db/seed'); } catch (_) {}
+      }
+    });
+  } catch (_) {}
+}
 
 // Basic health endpoint
 app.get('/api/health', (req, res) => {

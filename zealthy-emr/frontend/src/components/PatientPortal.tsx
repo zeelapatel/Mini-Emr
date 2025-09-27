@@ -27,7 +27,7 @@ export default function PatientPortal() {
         setLoading(false);
       }
     })();
-  }, [user]);
+  }, [user, navigate]);
 
   const inNext7Days = (dateStr: string) => {
     const now = new Date();

@@ -3,7 +3,7 @@
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-const DATABASE_URL = process.env.DATABASE_URL || path.join(__dirname, '..', 'database.sqlite');
+const DATABASE_URL = process.env.DATABASE_URL || (process.env.RENDER ? '/tmp/database.sqlite' : path.join(__dirname, '..', 'database.sqlite'));
 
 const db = new sqlite3.Database(DATABASE_URL);
 

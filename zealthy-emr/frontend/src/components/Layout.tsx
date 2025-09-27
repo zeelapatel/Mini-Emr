@@ -11,7 +11,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!user && location.pathname.startsWith('/dashboard')) {
       navigate('/', { replace: true });
     }
-  }, [user, location.pathname]);
+  }, [user, location.pathname, navigate]);
   return (
     <div>
       <nav className="nav">

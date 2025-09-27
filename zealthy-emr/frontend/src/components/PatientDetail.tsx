@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '../contexts/ToastContext';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import BackButton from './BackButton';
 import {
   getPatient,
@@ -84,7 +84,7 @@ export default function PatientDetail() {
 
   useEffect(() => {
     if (Number.isInteger(patientId)) loadAll();
-  }, [patientId]);
+  }, [patientId, loadAll]);
 
   const onSavePatient = async (e: React.FormEvent) => {
     e.preventDefault();
