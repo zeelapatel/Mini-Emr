@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '../contexts/ToastContext';
 import { useParams } from 'react-router-dom';
@@ -58,7 +58,7 @@ export default function PatientDetail() {
   const [medications, setMedications] = useState<string[]>([]);
   const [dosages, setDosages] = useState<string[]>([]);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -80,7 +80,7 @@ export default function PatientDetail() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [patientId]);
 
   useEffect(() => {
     if (Number.isInteger(patientId)) loadAll();
